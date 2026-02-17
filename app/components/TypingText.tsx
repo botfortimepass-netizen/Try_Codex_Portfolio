@@ -1,27 +1,54 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type TypingTextProps = {
-  text: string;
-  speed?: number;
+  texts: string[];
+  typingSpeed?: number;
+  deletingSpeed?: number;
+  pauseMs?: number;
 };
 
-export function TypingText({ text, speed = 70 }: TypingTextProps) {
+export function TypingText({
+  texts,
+  typingSpeed = 65,
+  deletingSpeed = 35,
+  pauseMs = 1400
+}: TypingTextProps) {
+  const safeTexts = useMemo(() => texts.filter(Boolean), [texts]);
+  const [textIndex, setTextIndex] = useState(0);
   const [display, setDisplay] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    let index = 0;
-    const timer = setInterval(() => {
-      index += 1;
-      setDisplay(text.slice(0, index));
-      if (index >= text.length) {
-        clearInterval(timer);
-      }
-    }, speed);
+    if (!safeTexts.length) return;
 
-    return () => clearInterval(timer);
-  }, [text, speed]);
+    const currentText = safeTexts[textIndex % safeTexts.length];
+    const reachedEnd = display === currentText;
+    const reachedStart = display.length === 0;
+
+    if (reachedEnd && !isDeleting) {
+      const pause = setTimeout(() => setIsDeleting(true), pauseMs);
+      return () => clearTimeout(pause);
+    }
+
+    if (reachedStart && isDeleting) {
+      setIsDeleting(false);
+      setTextIndex((prev) => (prev + 1) % safeTexts.length);
+      return;
+    }
+
+    const timeout = setTimeout(
+      () => {
+        setDisplay((prev) =>
+          isDeleting ? currentText.slice(0, Math.max(prev.length - 1, 0)) : currentText.slice(0, prev.length + 1)
+        );
+      },
+      isDeleting ? deletingSpeed : typingSpeed
+    );
+
+    return () => clearTimeout(timeout);
+  }, [deletingSpeed, display, isDeleting, pauseMs, safeTexts, textIndex, typingSpeed]);
 
   return (
     <p className="font-mono text-base text-neon-blue md:text-lg">
